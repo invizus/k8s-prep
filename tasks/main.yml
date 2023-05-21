@@ -1,0 +1,73 @@
+---
+
+- name: install packages
+  ansible.builtin.apt:
+    pkg:
+      - ca-certificates
+      - curl
+      - apt-transport-https
+      - containerd
+      - gnupg2
+    update_cache: yes
+  become: yes
+
+- name: k8s apt key
+  ansible.builtin.get_url:
+    #url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+    url: https://dl.k8s.io/apt/doc/apt-key.gpg
+    dest: /etc/apt/trusted.gpg.d/kubernetes-archive-keyring.gpg
+  become: yes
+
+- name: k8s apt repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/trusted.gpg.d/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main"
+  become: yes
+
+- name: install k8s packages
+  ansible.builtin.apt:
+    pkg:
+      - kubelet
+      - kubeadm
+      - kubectl
+    update_cache: yes
+  become: yes
+
+- name: Prevent k8s from being upgraded
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  with_items:
+    - kubelet
+    - kubeadm
+    - kubectl
+  become: yes
+
+- name: modprobe br_netfilter
+  #community.general.modprobe:
+  modprobe:
+    name: br_netfilter
+    state: present
+  become: yes
+
+- name: disable swap
+  ansible.builtin.command:
+    cmd: swapoff -a
+  become: yes
+
+- name: Ensure ip_forwarding enabled
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: 1
+    state: present
+  become: yes
+
+- name: Ensure bridge_nf_call iptables enabled
+  sysctl:
+    name: "{{ item }}"
+    value: 1
+    state: present
+  with_items:
+    - net.bridge.bridge-nf-call-iptables
+    - net.bridge.bridge-nf-call-ip6tables
+  become: yes
+
